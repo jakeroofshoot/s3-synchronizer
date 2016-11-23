@@ -1,11 +1,15 @@
 
 //////////////////// IMPORTS ///////////////////////////
 
-const gulp = require('gulp');
-const s3   = require('s3');
-const gutil = require('gutil');
-const ProgressBar = require('node-progress-bars');
-const Q = require('q');
+const gulp          = require('gulp'),
+      s3            = require('s3'),
+      gutil         = require('gutil'),
+      ProgressBar   = require('node-progress-bars'),
+      Q             = require('q'),
+      imagemin      = require('gulp-imagemin'),
+      size          = require('gulp-size'),
+      runSequence   = require('run-sequence'),
+      clean         = require('gulp-clean');
 
 const config = require('./config');
 
@@ -30,12 +34,24 @@ function pad(str, numChars) {
   return str;
 }
 
+////////////////////// CLEAN ///////////////////////////
+
+gulp.task('clean', function() {
+  return gulp.src('./dist', { read: false })
+    .pipe(clean());
+});
+
 //////////////////// PREP FILES ////////////////////////
 
-function prepFiles() {
-  console.log("preparing dist folder");
-  return Q.resolve();
-}
+gulp.task('prep', function() {
+  return gulp.src(config.uploadDir + '**/*.*', { base: config.uploadDir })
+    .pipe(imagemin())
+    .pipe(size({
+      showFiles: false,
+      showTotal: true  
+    }))
+    .pipe(gulp.dest('./dist'));
+});
 
 //////////////////// SYNC TO S3 ////////////////////////
 
@@ -82,7 +98,15 @@ function syncToS3(localDir, bucket, color, strLength) {
   });
 
   return deferred.promise;
-};
+}
+
+gulp.task('upload', function(cb) {
+  let strLength = maxLength(config.aws.buckets);
+  return Q.all(config.aws.buckets.map(function(bucket, index) {
+    let color = BAR_COLORS[index % BAR_COLORS.length];
+    return syncToS3(config.uploadDir, bucket, color, strLength);
+  }));
+});
 
 //////////////////////// TASKS ///////////////////////////
 
@@ -91,24 +115,7 @@ gulp.task('config', function() {
 });
 
 gulp.task('sync', function(cb) {
-  let strLength = maxLength(config.aws.buckets);
-
-  prepFiles()
-  .then(function() {
-    console.log("synching");
-    return Q.all(config.aws.buckets.map(function(bucket, index) {
-      let color = BAR_COLORS[index % BAR_COLORS.length];
-      return syncToS3(config.uploadDir, bucket, color, strLength);
-    }));
-  })
-  .then(function() {
-    console.log("synch complete");
-    cb();
-  });
-});
-
-gulp.task('test', function() {
-  console.log(pad('jake', 10));
+  runSequence('clean', 'prep', 'upload', cb);
 });
 
 

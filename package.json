@@ -11,9 +11,13 @@
   "devDependencies": {},
   "dependencies": {
     "gulp": "^3.9.1",
+    "gulp-clean": "^0.3.2",
+    "gulp-imagemin": "^3.1.1",
+    "gulp-size": "^2.1.0",
     "gutil": "^1.6.4",
     "node-progress-bars": "^1.0.0",
     "q": "^1.4.1",
+    "run-sequence": "^1.2.2",
     "s3": "^4.4.0"
   }
 }

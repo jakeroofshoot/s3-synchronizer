@@ -1,4 +1,9 @@
 node_modules/
 notes/
+dist/
+
 content/
+content2/
+empty/
+
 aws-creds.js
