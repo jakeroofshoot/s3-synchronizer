@@ -8,8 +8,8 @@ module.exports = {
 
     buckets: [
       'jake-test-int',
-      'test-stg',
-      'test-prod'
+      'jake-test-stg',
+      'jake-test-prod'
     ]
   }
 
