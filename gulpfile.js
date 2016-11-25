@@ -9,13 +9,16 @@ const gulp          = require('gulp'),
       imagemin      = require('gulp-imagemin'),
       size          = require('gulp-size'),
       runSequence   = require('run-sequence'),
-      clean         = require('gulp-clean');
+      clean         = require('gulp-clean'),
+      fs            = require('fs');
 
 const config = require('./config');
 
 //////////////////// CONSTANTS /////////////////////////
 
 const BAR_COLORS = ['red', 'cyan', 'green', 'yellow', 'magenta', 'blue'];
+const DIST_DIR = './dist';
+const EMPTY_DIR = './empty';
 
 //////////////////// UTILITIES /////////////////////////
 
@@ -37,7 +40,7 @@ function pad(str, numChars) {
 ////////////////////// CLEAN ///////////////////////////
 
 gulp.task('clean', function() {
-  return gulp.src('./dist', { read: false })
+  return gulp.src(DIST_DIR, { read: false })
     .pipe(clean());
 });
 
@@ -50,7 +53,19 @@ gulp.task('prep', function() {
       showFiles: false,
       showTotal: true  
     }))
-    .pipe(gulp.dest('./dist'));
+    .pipe(gulp.dest(DIST_DIR));
+});
+
+////////////////// MAKE TMP FOLDER /////////////////////
+
+gulp.task('mkEmpty', function() {
+  fs.mkdirSync(EMPTY_DIR);
+  return Q.resolve();
+});
+
+gulp.task('rmEmpty', function() {
+  fs.rmdirSync(EMPTY_DIR);
+  return Q.resolve(); 
 });
 
 //////////////////// SYNC TO S3 ////////////////////////
@@ -100,12 +115,20 @@ function syncToS3(localDir, bucket, color, strLength) {
   return deferred.promise;
 }
 
-gulp.task('upload', function(cb) {
+function syncAll(localDir) {
   let strLength = maxLength(config.aws.buckets);
   return Q.all(config.aws.buckets.map(function(bucket, index) {
     let color = BAR_COLORS[index % BAR_COLORS.length];
-    return syncToS3(config.uploadDir, bucket, color, strLength);
+    return syncToS3(localDir, bucket, color, strLength);
   }));
+}
+
+gulp.task('upload', function(cb) {
+  return syncAll(config.uploadDir);
+});
+
+gulp.task('uploadEmpty', function(cb) {
+  return syncAll(EMPTY_DIR);
 });
 
 //////////////////////// TASKS ///////////////////////////
@@ -116,6 +139,10 @@ gulp.task('config', function() {
 
 gulp.task('sync', function(cb) {
   runSequence('clean', 'prep', 'upload', cb);
+});
+
+gulp.task('empty', function(cb) {
+  runSequence('mkEmpty', 'uploadEmpty', 'rmEmpty', cb);
 });
 
 

@@ -1,7 +1,7 @@
 
 module.exports = {
 
-  uploadDir: './content/',
+  uploadDir: './content2/',
 
   aws: {
     credentials: require('./aws-creds.js'),
