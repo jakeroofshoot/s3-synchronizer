@@ -10,17 +10,18 @@ const gulp          = require('gulp'),
       size          = require('gulp-size'),
       runSequence   = require('run-sequence'),
       clean         = require('gulp-clean'),
-      fs            = require('fs');
+      fs            = require('fs'),
+      _             = require('lodash');
 
 const config = require('./config');
 
 //////////////////// CONSTANTS /////////////////////////
 
-const BAR_COLORS = ['red', 'cyan', 'green', 'yellow', 'magenta', 'blue'];
 const DIST_DIR = './dist';
 const EMPTY_DIR = './empty';
+const BAR_COLORS = ['red', 'cyan', 'green', 'yellow', 'magenta', 'blue'];
 
-//////////////////// UTILITIES /////////////////////////
+//////////////////// PURE FUNCTIONS ////////////////////
 
 // returns the length of the longest string in an array
 function maxLength(arr) {
@@ -37,59 +38,17 @@ function pad(str, numChars) {
   return str;
 }
 
-////////////////////// CLEAN ///////////////////////////
-
-gulp.task('clean', function() {
-  return gulp.src(DIST_DIR, { read: false })
-    .pipe(clean());
-});
-
-//////////////////// PREP FILES ////////////////////////
-
-gulp.task('prep', function() {
-  return gulp.src(config.uploadDir + '**/*.*', { base: config.uploadDir })
-    .pipe(imagemin())
-    .pipe(size({
-      showFiles: false,
-      showTotal: true  
-    }))
-    .pipe(gulp.dest(DIST_DIR));
-});
-
-////////////////// MAKE TMP FOLDER /////////////////////
-
-gulp.task('mkEmpty', function() {
-  fs.mkdirSync(EMPTY_DIR);
-  return Q.resolve();
-});
-
-gulp.task('rmEmpty', function() {
-  fs.rmdirSync(EMPTY_DIR);
-  return Q.resolve(); 
-});
-
-//////////////////// SYNC TO S3 ////////////////////////
-
-function syncToS3(localDir, bucket, color, strLength) {
+// syncs a single s3 bucket
+function syncToS3(creds, uploadOpts, bucket, color, strLength) {
   let deferred = Q.defer();
 
-  let client = s3.createClient({
-    s3Options: config.aws.credentials
-  });
+  let client = s3.createClient({ s3Options: creds });
 
-  let uploader = client.uploadDir({
-    localDir: localDir,
-    deleteRemoved: true,
-    s3Params: {
-      Bucket: bucket
-    },
-    getS3Params: function(localFile, stat, callback) {
-      let s3Params = stat.path === 'index.html' ? 
-                     { CacheControl: 'max-age=0' } :
-                     { CacheControl: 'max-age=604800' }
-      callback(null, s3Params);
-    }
-  });
+  let uploader = (function() {
+    let options = _.cloneDeep(uploadOpts);
+    options.s3Params.Bucket = bucket;
+    return client.uploadDir(options);
+  })();
 
   let bar = new ProgressBar({ 
     schema: pad(bucket + ':', strLength + 2) + ':bar.' + color + ' :percent'
@@ -115,23 +74,56 @@ function syncToS3(localDir, bucket, color, strLength) {
   return deferred.promise;
 }
 
-function syncAll(localDir) {
-  let strLength = maxLength(config.aws.buckets);
-  return Q.all(config.aws.buckets.map(function(bucket, index) {
+// syncs all the s3 buckets listed in the config
+function syncAll(creds, uploadOpts, buckets) {
+  let strLength = maxLength(buckets);
+  return Q.all(buckets.map(function(bucket, index) {
     let color = BAR_COLORS[index % BAR_COLORS.length];
-    return syncToS3(localDir, bucket, color, strLength);
+    return syncToS3(creds, uploadOpts, bucket, color, strLength);
   }));
 }
 
+//////////////////// SUB-TASKS ////////////////////////
+
+gulp.task('clean', function() {
+  return gulp.src(DIST_DIR, { read: false })
+    .pipe(clean());
+});
+
+gulp.task('prep', function() {
+  let localDir = config.uploadOpts.localDir;
+  return gulp.src(localDir + '**/*.*', { base: localDir })
+    .pipe(imagemin())
+    .pipe(size({
+      showFiles: false,
+      showTotal: true  
+    }))
+    .pipe(gulp.dest(DIST_DIR));
+});
+
 gulp.task('upload', function(cb) {
-  return syncAll(config.uploadDir);
+  let uploadOpts = _.clone(config.uploadOpts);
+  uploadOpts.localDir = DIST_DIR;
+  return syncAll(config.awsCredentials, uploadOpts, config.buckets);
+});
+
+gulp.task('mkEmpty', function() {
+  fs.mkdirSync(EMPTY_DIR);
+  return Q.resolve();
 });
 
 gulp.task('uploadEmpty', function(cb) {
-  return syncAll(EMPTY_DIR);
+  let uploadOpts = _.clone(config.uploadOpts);
+  uploadOpts.localDir = EMPTY_DIR;
+  return syncAll(config.awsCredentials, uploadOpts, config.buckets);
 });
 
-//////////////////////// TASKS ///////////////////////////
+gulp.task('rmEmpty', function() {
+  fs.rmdirSync(EMPTY_DIR);
+  return Q.resolve(); 
+});
+
+////////////////////// CLI TASKS ////////////////////////
 
 gulp.task('config', function() {
   console.log(config);
@@ -144,8 +136,5 @@ gulp.task('sync', function(cb) {
 gulp.task('empty', function(cb) {
   runSequence('mkEmpty', 'uploadEmpty', 'rmEmpty', cb);
 });
-
-
-
 
 
