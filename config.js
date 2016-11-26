@@ -4,16 +4,17 @@ module.exports = {
   awsCredentials: require('./aws-creds.js'),
 
   buckets: [
-    'jake-test-int',
-    'jake-test-stg',
-    'jake-test-prod'
+    'portal-content-int',
+    'portal-content-qa',
+    'portal-content-stg',
+    'portal-content-prod'
   ],
 
   // use any options from here: https://www.npmjs.com/package/s3
   uploadOpts: {
 
     // name of the local directory you want to sync
-    localDir: './content2/',
+    localDir: './portal-content/',
 
     // whether to delete files from the bucket 
     // if they aren't in the localDir
@@ -27,7 +28,7 @@ module.exports = {
     // determines the s3 params on a file-by-file basis
     // pass null as the second arg of callback to skip a file
     getS3Params: function(localFile, stat, callback) {
-      let s3Params = { CacheControl: 'max-age=10000000' };
+      let s3Params = { CacheControl: 'max-age=604800' };  // one week
       callback(null, s3Params);
     }
   }

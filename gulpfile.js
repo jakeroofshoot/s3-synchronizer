@@ -125,10 +125,6 @@ gulp.task('rmEmpty', function() {
 
 ////////////////////// CLI TASKS ////////////////////////
 
-gulp.task('config', function() {
-  console.log(config);
-});
-
 gulp.task('sync', function(cb) {
   runSequence('clean', 'prep', 'upload', cb);
 });
