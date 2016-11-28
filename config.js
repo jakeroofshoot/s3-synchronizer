@@ -22,7 +22,7 @@ module.exports = {
 
     // upload parameters. you can include any params from the aws docs:
     // http://docs.aws.amazon.com/AWSJavaScriptSDK/latest/AWS/S3.html#putObject-property
-    // the name of the bucket will be included automatically
+    // the Bucket and Key props will be included automatically
     s3Params: {},
 
     // determines the s3 params on a file-by-file basis

@@ -18,7 +18,6 @@ const config = require('./config');
 //////////////////// CONSTANTS /////////////////////////
 
 const DIST_DIR = './dist';
-const EMPTY_DIR = './empty';
 const BAR_COLORS = ['red', 'cyan', 'green', 'yellow', 'magenta', 'blue'];
 
 //////////////////// PURE FUNCTIONS ////////////////////
@@ -38,8 +37,8 @@ function pad(str, numChars) {
   return str;
 }
 
-// syncs a single s3 bucket
-function syncToS3(creds, uploadOpts, bucket, color, strLength) {
+// sync a single s3 bucket
+function syncToS3(creds, bucket, uploadOpts, color, strLength) {
   let deferred = Q.defer();
 
   let client = s3.createClient({ s3Options: creds });
@@ -74,22 +73,24 @@ function syncToS3(creds, uploadOpts, bucket, color, strLength) {
   return deferred.promise;
 }
 
-// syncs all the s3 buckets listed in the config
-function syncAll(creds, uploadOpts, buckets) {
+// sync an array of s3 buckets
+function syncAll(creds, buckets, uploadOpts) {
   let strLength = maxLength(buckets);
   return Q.all(buckets.map(function(bucket, index) {
     let color = BAR_COLORS[index % BAR_COLORS.length];
-    return syncToS3(creds, uploadOpts, bucket, color, strLength);
+    return syncToS3(creds, bucket, uploadOpts, color, strLength);
   }));
 }
 
 //////////////////// SUB-TASKS ////////////////////////
 
+// empty the dist folder
 gulp.task('clean', function() {
-  return gulp.src(DIST_DIR, { read: false })
+  return gulp.src(DIST_DIR + '/**/*.*', { read: false })
     .pipe(clean());
 });
 
+// copy files from localDir to dist folder; optimize images
 gulp.task('prep', function() {
   let localDir = config.uploadOpts.localDir;
   return gulp.src(localDir + '**/*.*', { base: localDir })
@@ -101,36 +102,21 @@ gulp.task('prep', function() {
     .pipe(gulp.dest(DIST_DIR));
 });
 
+// upload from the dist folder to all s3 buckets
 gulp.task('upload', function(cb) {
-  let uploadOpts = _.clone(config.uploadOpts);
-  uploadOpts.localDir = DIST_DIR;
-  return syncAll(config.awsCredentials, uploadOpts, config.buckets);
-});
-
-gulp.task('mkEmpty', function() {
-  fs.mkdirSync(EMPTY_DIR);
-  return Q.resolve();
-});
-
-gulp.task('uploadEmpty', function(cb) {
-  let uploadOpts = _.clone(config.uploadOpts);
-  uploadOpts.localDir = EMPTY_DIR;
-  return syncAll(config.awsCredentials, uploadOpts, config.buckets);
-});
-
-gulp.task('rmEmpty', function() {
-  fs.rmdirSync(EMPTY_DIR);
-  return Q.resolve(); 
+  config.uploadOpts.localDir = DIST_DIR;
+  return syncAll(config.awsCredentials, config.buckets, config.uploadOpts);
 });
 
 ////////////////////// CLI TASKS ////////////////////////
 
+// sync all buckets with local directory
 gulp.task('sync', function(cb) {
   runSequence('clean', 'prep', 'upload', cb);
 });
 
+// empty all buckets
 gulp.task('empty', function(cb) {
-  runSequence('mkEmpty', 'uploadEmpty', 'rmEmpty', cb);
+  runSequence('clean', 'upload', cb);
 });
-
 
