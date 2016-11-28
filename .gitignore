@@ -1,4 +1,5 @@
 node_modules/
 notes/
 dist/
+portal-content/
 aws-creds.js
